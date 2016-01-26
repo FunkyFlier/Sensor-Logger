@@ -1,19 +1,19 @@
 '''
 Created on Jan 26, 2016
 
-@author: work
+@author: Michael Baker
 '''
 
 import Adafruit_GPIO.FT232H as FT232H
 import struct
 import ctypes
 import time
-from math import floor
+import serial
+
 # Temporarily disable FTDI serial drivers.
 FT232H.use_FT232H()
 # Find the first FT232H device.
 ft232h = FT232H.FT232H()
-
 
 def millis():
     return time.clock() * 1000
@@ -45,9 +45,6 @@ class L3G4200DDriver:
         self.gyro = FT232H.I2CDevice(ft232h,self.L3G_I2C_ADDR,400000)
         
     def Setup(self):
-        #whoAmI = gyro.readU8(L3G_WHO_AM_I)
-        #print format(whoAmI,'02x')
-        #print (bin(whoAmI))
         self.gyro.write8(self.L3G_CTRL_REG2, 0x00)
         self.gyro.write8(self.L3G_CTRL_REG3, 0x00)
         self.gyro.write8(self.L3G_CTRL_REG4, 0x20)
@@ -219,16 +216,113 @@ class MS56XXDriver:
                 OFF -= OFF2
                 SENS -= SENS2
                 self.pressure = ctypes.c_float((((self.D1*SENS)/pow(2,21)-OFF)/pow(2,15))).value
-                time.sleep(1)
                 print self.pressure
                 self.pollState = 0
                 
+class UBLOXPVTParser:
+    ubloxState = 0
+    inByte   = 0x00
+    summingByte = 0x00
+
+    sumRcvdA = 0x00
+    sumRcvdB = 0x00
+ 
+    sumCalcA = 0x00
+    sumCalcB = 0x00
+    ublox = []
+    def __init__(self):
+        self.ublox = serial.Serial('COM15',38400)
+        self.ublox.close()
+        self.ublox.open()
+    def GetGPSByte(self):
+        inList = self.ublox.read(1)
+        gpsByte = struct.unpack('B',inList[0:1])
+        return gpsByte[0]       
+    def Poll(self):
+        while self.ublox.inWaiting() > 0:
+            if self.ubloxState == 0:#check first byte
+                self.inByte = self.GetGPSByte()
+                if self.inByte == 0xB5:
+                    self.ubloxState = 1    
+            elif self.ubloxState == 1:#check second byte
+                self.inByte = self.GetGPSByte()
+                if self.inByte == 0x62:
+                    self.ubloxState = 2
+                else:
+                    self.ubloxState = 0
+                self.sumCalcA = 0x00
+                self.sumCalcB = 0x00
+            elif self.ubloxState == 2:#check message type
+                self.inByte = self.GetGPSByte()
+                self.sumCalcA += self.inByte
+                self.sumCalcB += self.sumCalcA
+                if self.inByte == 0x01:
+                    self.ubloxState = 3
+                else:
+                    self.ubloxState = 0
+            elif self.ubloxState == 3:#check message number
+                self.inByte = self.GetGPSByte()
+                self.sumCalcA += self.inByte
+                self.sumCalcB += self.sumCalcA
+                if self.inByte == 0x07:
+                    self.ubloxState = 4
+                else:
+                    self.ubloxState = 0
+            elif self.ubloxState == 4:#get packet length
+                if self.ublox.inWaiting() >= 2:
+                    lengthList = self.ublox.read(2)
+                    packetLength = struct.unpack('H',lengthList[0:2])
+                    
+                    inByteList = struct.unpack('B',lengthList[0:1])
+                    self.sumCalcA += inByteList[0]
+                    self.sumCalcB += self.sumCalcA
+                    
+                    inByteList = struct.unpack('B',lengthList[1:2])
+                    self.sumCalcA += inByteList[0]
+                    self.sumCalcB += self.sumCalcA
+                    #print(packetLength)
+                    if packetLength[0] == 92:
+                        self.ubloxState = 5
+                    else:
+                        self.ubloxState = 0
+            elif self.ubloxState == 5:#get GPS packet
+                if self.ublox.inWaiting() >= 92:
+                    #print "5"
+                    ubloxList = self.ublox.read(92)
+                    self.ubloxState = 6
+            elif self.ubloxState == 6:#get first sum
+                self.sumRcvdA = self.GetGPSByte()
+                self.ubloxState = 7
+            elif self.ubloxState == 7:#get second sum then generate and check
+                self.sumRcvdB = self.GetGPSByte()
+                for i in range(0,92):
+                    summingByte = struct.unpack('B',ubloxList[i:i+1])
+                    self.sumCalcA += summingByte[0]
+                    self.sumCalcB += self.sumCalcA
+                self.sumCalcA = self.sumCalcA & 0xFF
+                self.sumCalcB = self.sumCalcB & 0xFF
+                if (self.sumCalcA == self.sumRcvdA) and (self.sumCalcB == self.sumRcvdB):
+                    #unpack the data from the list
+                    ubloxTouple = struct.unpack('LHBBBBBBLlBBBBllllLLlllllLLH',ubloxList[0:78])
+                    numSats = ubloxTouple[13]
+                    longitude = ubloxTouple[14]
+                    lattitude = ubloxTouple[15]
+                    heightEllipsoid = ubloxTouple[16]
+                    heightMSL = ubloxTouple[17]
+                    velN = ubloxTouple[20]
+                    velE = ubloxTouple[21]
+                    velD = ubloxTouple[22]
+                    print ubloxTouple
+                    print (numSats,longitude,lattitude,heightEllipsoid,heightMSL,velN,velE,velD)
+                self.ubloxState = 0
 #end classes ---------------------------------------------------------     
 ClockStart()   
+
 gyro = L3G4200DDriver()
 acc = LSM303DLHAccDriver()
 mag = LSM303DLHMagDriver()
 baro = MS56XXDriver()
+gps = UBLOXPVTParser()
 
 mag.Setup()
 gyro.Setup()
@@ -241,7 +335,7 @@ print mag.Read()
  
 while True:
     baro.Poll()
-
+    gps.Poll()
 
 
 
