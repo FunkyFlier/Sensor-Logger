@@ -36,8 +36,8 @@ class L3G4200DDriver:
         self.gyro.write8(self.L3G_CTRL_REG3, 0x00)
         self.gyro.write8(self.L3G_CTRL_REG4, 0x20)
         self.gyro.write8(self.L3G_CTRL_REG5, 0x02)
-        self.gyro.write8(self.L3G_CTRL_REG1, 0x8F)     
-
+        self.gyro.write8(self.L3G_CTRL_REG1, 0xCF)     
+        #800 Hz 30Hz Lpf cut off
     def Read(self):
         gyroByteList = self.gyro.readList(self.L3G_OUT_X_L | self.READ, 6)
         gyroIntTouple = struct.unpack('hhh',gyroByteList[0:6])
@@ -65,18 +65,13 @@ class LSM303DLHMagDriver:
     def __init__(self):
         self.mag  = FT232H.I2CDevice(ft232h,self.MAG_ADDRESS,400000)
     def Setup(self):
-        self.mag.write8(self.HMC5983_CRA_REG, 0x9C)
+        self.mag.write8(self.HMC5983_CRA_REG, 0x18)
         self.mag.write8(self.HMC5983_CRB_REG, 0x60)
-        self.mag.write8(self.HMC5983_MR_REG, 0x80)
+        self.mag.write8(self.HMC5983_MR_REG, 0x00)
     def Read(self):
         magByteList = self.mag.readList(self.HMC5983_OUT_X_H | self.READ,6)
         magIntTouple = struct.unpack('>hhh',magByteList[0:6])
         magIntList = list(magIntTouple)
-        magIntList[1], magIntList [2] = magIntList[2], magIntList[1]
-#         Z = magIntList[1]
-#         Y = magIntList[2]
-#         magIntList[1] = Y
-#         magIntList[2] = Z
         return magIntList    
     
 class LSM303DLHAccDriver:
@@ -110,7 +105,7 @@ class LSM303DLHAccDriver:
         self.acc.write8(self.CTRL_REG3_A, 0x00)
         self.acc.write8(self.CTRL_REG4_A, 0x30)
         self.acc.write8(self.CTRL_REG5_A, 0x00)
-        
+        #1kHz +/- 8G
     def Read(self):
         accByteList = self.acc.readList(self.OUT_X_L_A | self.READ, 6)
         accIntTouple = struct.unpack('hhh',accByteList[0:6])
