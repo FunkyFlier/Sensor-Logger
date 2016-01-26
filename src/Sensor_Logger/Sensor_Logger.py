@@ -9,11 +9,15 @@ import struct
 import ctypes
 import time
 import serial
+import logging
 
 # Temporarily disable FTDI serial drivers.
 FT232H.use_FT232H()
 # Find the first FT232H device.
 ft232h = FT232H.FT232H()
+
+logging.basicConfig(filename='test.log',format='',level=logging.INFO)
+
 
 def millis():
     return time.clock() * 1000
@@ -59,16 +63,16 @@ class L3G4200DDriver:
     
 class LSM303DLHMagDriver:
     #mag defines ST HMC5983DLHC - will work with the HMC5883L
-    MAG_ADDRESS     = 0x1E  #0001 1110
-    HMC5983_CRA_REG = 0x00
-    HMC5983_CRB_REG = 0x01
-    HMC5983_MR_REG  = 0x02
-    HMC5983_OUT_X_H = 0x03
-    HMC5983_OUT_X_L = 0x04
-    HMC5983_OUT_Z_H = 0x05
-    HMC5983_OUT_Z_L = 0x06
-    HMC5983_OUT_Y_H = 0x07
-    HMC5983_OUT_Y_L = 0x08
+    MAG_ADDRESS      = 0x1E  #0001 1110
+    HMC5983_CRA_REG  = 0x00
+    HMC5983_CRB_REG  = 0x01
+    HMC5983_MR_REG   = 0x02
+    HMC5983_OUT_X_H  = 0x03
+    HMC5983_OUT_X_L  = 0x04
+    HMC5983_OUT_Z_H  = 0x05
+    HMC5983_OUT_Z_L  = 0x06
+    HMC5983_OUT_Y_H  = 0x07
+    HMC5983_OUT_Y_L  = 0x08
     
     HMC5983_ID_A     = 0x0A
     HMC5983_ID_B     = 0x0B
@@ -141,13 +145,14 @@ class MS56XXDriver:
     
     MS5611_ADC_READ           = 0x00
     
-    MS5611_BARO_CONV_TIME     = 10
+    MS5611_BARO_CONV_TIME     = 11
     C = []
     pressure = 0.0
     pollTimer = 0
     pollState = 0
     D2 = ctypes.c_uint32(0).value
     D1 = ctypes.c_uint32(0).value
+    newBaroData = False
     def __init__(self):
         self.baro = FT232H.I2CDevice(ft232h,self.BARO_ADDR,400000)
         
@@ -216,19 +221,29 @@ class MS56XXDriver:
                 OFF -= OFF2
                 SENS -= SENS2
                 self.pressure = ctypes.c_float((((self.D1*SENS)/pow(2,21)-OFF)/pow(2,15))).value
-                print self.pressure
+                self.newBaroData = True
+                #print self.pressure
                 self.pollState = 0
                 
 class UBLOXPVTParser:
-    ubloxState = 0
-    inByte   = 0x00
+    ubloxState  = 0
+    inByte      = 0x00
     summingByte = 0x00
 
-    sumRcvdA = 0x00
-    sumRcvdB = 0x00
+    sumRcvdA    = 0x00
+    sumRcvdB    = 0x00
  
-    sumCalcA = 0x00
-    sumCalcB = 0x00
+    sumCalcA    = 0x00
+    sumCalcB    = 0x00
+    newGPSData = False
+    numSats = []
+    longitude = []
+    lattitude = []
+    heightEllipsoid = []
+    heightMSL = []
+    velN = []
+    velE = []
+    velD = []
     ublox = []
     def __init__(self):
         self.ublox = serial.Serial('COM15',38400)
@@ -304,18 +319,21 @@ class UBLOXPVTParser:
                 if (self.sumCalcA == self.sumRcvdA) and (self.sumCalcB == self.sumRcvdB):
                     #unpack the data from the list
                     ubloxTouple = struct.unpack('LHBBBBBBLlBBBBllllLLlllllLLH',ubloxList[0:78])
-                    numSats = ubloxTouple[13]
-                    longitude = ubloxTouple[14]
-                    lattitude = ubloxTouple[15]
-                    heightEllipsoid = ubloxTouple[16]
-                    heightMSL = ubloxTouple[17]
-                    velN = ubloxTouple[20]
-                    velE = ubloxTouple[21]
-                    velD = ubloxTouple[22]
-                    print ubloxTouple
-                    print (numSats,longitude,lattitude,heightEllipsoid,heightMSL,velN,velE,velD)
+                    self.numSats = ubloxTouple[13]
+                    self.longitude = ubloxTouple[14]
+                    self.lattitude = ubloxTouple[15]
+                    self.heightEllipsoid = ubloxTouple[16]
+                    self.heightMSL = ubloxTouple[17]
+                    self.velN = ubloxTouple[20]
+                    self.velE = ubloxTouple[21]
+                    self.velD = ubloxTouple[22]
+                    self.newGPSData = True
+                    #print ubloxTouple
+                    #print (self.numSats,self.longitude,self.lattitude,self.heightEllipsoid,self.heightMSL,self.velN,self.velE,self.velD)
                 self.ubloxState = 0
-#end classes ---------------------------------------------------------     
+#end classes ---------------------------------------------------------    
+
+ 
 ClockStart()   
 
 gyro = L3G4200DDriver()
@@ -332,12 +350,37 @@ baro.Setup()
 print gyro.Read()
 print acc.Read()
 print mag.Read()
- 
+highRateTimer = micros()
+lowRateTimer = millis()
+accGyroString = []
+magString = []
+gpsString = []
+pressureString = []
 while True:
+    if (micros() - highRateTimer) > 1250:
+        highRateTimer = micros()
+        gyroList = gyro.Read()
+        accList = acc.Read()
+        accGyroString = "%f,%i,%i,%i,%i,%i,%i,%i"%(micros(),0
+                                                ,gyroList[0],gyroList[1]
+                                                ,gyroList[2],accList[0]
+                                                ,accList[1],accList[2])
+        logging.info(accGyroString)
+    if (millis() - lowRateTimer) > 13.3:
+        lowRateTimer = millis()
+        magList = mag.Read()
+        magString = "%f,%i,%i,%i,%i"%(micros(),1,magList[0],magList[1],magList[2])
+        logging.info(magString)
     baro.Poll()
+    if baro.newBaroData == True:
+        baro.newBaroData = False
+        pressureString = "%f,%i,%i"%(micros(),2,baro.pressure)
+        logging.info(pressureString)
     gps.Poll()
-
-
+    if gps.newGPSData == True:
+        gps.newGPSData = False
+        gpsString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i"%(micros(),3,gps.numSats,gps.longitude,gps.lattitude,gps.heightEllipsoid,gps.heightMSL,gps.velN,gps.velE,gps.velD)
+        logging.info(gpsString)
 
 
 
