@@ -6,12 +6,28 @@ Created on Jan 26, 2016
 
 import Adafruit_GPIO.FT232H as FT232H
 import struct
-
+import ctypes
+import time
+from math import floor
 # Temporarily disable FTDI serial drivers.
 FT232H.use_FT232H()
 # Find the first FT232H device.
 ft232h = FT232H.FT232H()
 
+
+def millis():
+    return time.clock() * 1000
+    #return floor(time.clock() * 1000)
+def micros():
+    return time.clock() * 1000000
+    #return floor(time.clock() * 1000000)
+def nanos():
+    return time.clock() * 1000000000
+    #return floor(time.clock() * 1000000000)
+def ClockStart():
+    millis()
+    micros()
+    nanos()
 class L3G4200DDriver:
     #gyro defines - ST L3G2
     L3G_CTRL_REG1 = 0x20
@@ -111,20 +127,120 @@ class LSM303DLHAccDriver:
         accIntTouple = struct.unpack('hhh',accByteList[0:6])
         accIntList = list(accIntTouple)
         return accIntList    
+
+class MS56XXDriver:
+    BARO_ADDR                 = 0x76 
+    MS5611_RESET              = 0x1E
+    MS5611_PROM_Setup         = 0xA0
+    MS5611_PROM_C1            = 0xA2
+    MS5611_PROM_C2            = 0xA4
+    MS5611_PROM_C3            = 0xA6
+    MS5611_PROM_C4            = 0xA8
+    MS5611_PROM_C5            = 0xAA
+    MS5611_PROM_C6            = 0xAC
+    MS5611_PROM_CRC           = 0xAE
+    MS5611_CONVERT_D1_OSR4096 = 0x48   
+    MS5611_CONVERT_D2_OSR4096 = 0x58   
+    
+    MS5611_ADC_READ           = 0x00
+    
+    MS5611_BARO_CONV_TIME     = 10
+    C = []
+    pressure = 0.0
+    pollTimer = 0
+    pollState = 0
+    D2 = ctypes.c_uint32(0).value
+    D1 = ctypes.c_uint32(0).value
+    def __init__(self):
+        self.baro = FT232H.I2CDevice(ft232h,self.BARO_ADDR,400000)
         
-#end classes ---------------------------------------------------------        
+    def Setup(self): 
+        baroByteList = self.baro.readList(self.MS5611_PROM_Setup , 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+           
+        baroByteList = self.baro.readList(self.MS5611_PROM_C1 , 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+              
+        baroByteList = self.baro.readList(self.MS5611_PROM_C2, 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+              
+        baroByteList = self.baro.readList(self.MS5611_PROM_C3, 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+              
+        baroByteList = self.baro.readList(self.MS5611_PROM_C4, 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+              
+        baroByteList = self.baro.readList(self.MS5611_PROM_C5, 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+              
+        baroByteList = self.baro.readList(self.MS5611_PROM_C6, 2)
+        self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
+        self.pollTimer = millis()
+        self.pollState = 0
+        print self.C
+       
+        
+    def Poll(self):
+        if self.pollState == 0:#send D2 convert
+            self.baro.writeRaw8(self.MS5611_CONVERT_D2_OSR4096)
+            self.pollState = 1
+        elif self.pollState == 1:#
+            if (millis() - self.pollTimer) >  self.MS5611_BARO_CONV_TIME:
+                self.pollTimer = millis()
+                adcList = self.baro.readList(self.MS5611_ADC_READ, 3)
+                adcList.insert(0,'\00')
+                self.D2 = struct.unpack('>L',adcList[0:4])[0]
+                self.pollState = 2
+        elif self.pollState == 2:
+            self.baro.writeRaw8(self.MS5611_CONVERT_D1_OSR4096)
+            self.pollState = 3
+        elif self.pollState == 3:
+            if (millis() - self.pollTimer) >  self.MS5611_BARO_CONV_TIME:
+                self.pollTimer = millis()
+                adcList = self.baro.readList(self.MS5611_ADC_READ, 3)
+                adcList.insert(0,'\00')
+                self.D1 = struct.unpack('>L',adcList[0:4])[0]
+                dT = ctypes.c_int32(self.D2-self.C[5]*pow(2,8)).value
+                TEMP = ctypes.c_float((2000+(dT*self.C[6])/pow(2,23))).value
+                OFF = ctypes.c_float(self.C[2]*pow(2,17)+dT*self.C[4]/pow(2,6)).value
+                SENS = ctypes.c_float(self.C[1]*pow(2,16)+dT*self.C[3]/pow(2,7)).value
+                # perform higher order corrections
+                T2=ctypes.c_float(0).value
+                OFF2=ctypes.c_float(0).value 
+                SENS2=ctypes.c_float(0).value
+                if TEMP < 2000:
+                    T2=ctypes.c_float(dT*dT/pow(2,31)).value
+                    OFF2=ctypes.c_float(61*(TEMP-2000)*(TEMP-2000)/pow(2,4)).value
+                    SENS2=ctypes.c_float(2*(TEMP-2000)*(TEMP-2000)).value
+                    if TEMP < -1500:
+                        OFF2+=ctypes.c_float(15*(TEMP+1500)*(TEMP+1500)).value
+                        SENS2+=ctypes.c_float(8*(TEMP+1500)*(TEMP+1500)).value 
+                TEMP -= T2
+                OFF -= OFF2
+                SENS -= SENS2
+                self.pressure = ctypes.c_float((((self.D1*SENS)/pow(2,21)-OFF)/pow(2,15))).value
+                time.sleep(1)
+                print self.pressure
+                self.pollState = 0
+                
+#end classes ---------------------------------------------------------     
+ClockStart()   
 gyro = L3G4200DDriver()
 acc = LSM303DLHAccDriver()
 mag = LSM303DLHMagDriver()
+baro = MS56XXDriver()
 
 mag.Setup()
 gyro.Setup()
 acc.Setup()
+baro.Setup()
 
 print gyro.Read()
 print acc.Read()
 print mag.Read()
-
+ 
+while True:
+    baro.Poll()
 
 
 
