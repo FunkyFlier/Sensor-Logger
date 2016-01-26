@@ -5,6 +5,7 @@ Created on Jan 26, 2016
 '''
 
 import Adafruit_GPIO.FT232H as FT232H
+import Adafruit_GPIO as GPIO
 import struct
 import ctypes
 import time
@@ -16,8 +17,9 @@ FT232H.use_FT232H()
 # Find the first FT232H device.
 ft232h = FT232H.FT232H()
 
-logging.basicConfig(filename='test.log',format='',level=logging.INFO)
-
+logging.basicConfig(filename='test1.log',format='',level=logging.INFO)
+ft232h.setup(6, GPIO.OUT)  
+ft232h.setup(7, GPIO.OUT)  
 
 def millis():
     return time.clock() * 1000
@@ -245,10 +247,12 @@ class UBLOXPVTParser:
     velE = []
     velD = []
     ublox = []
+    ubloxList = []
     def __init__(self):
         self.ublox = serial.Serial('COM15',38400)
         self.ublox.close()
         self.ublox.open()
+        self.ubloxState  = 0
     def GetGPSByte(self):
         inList = self.ublox.read(1)
         gpsByte = struct.unpack('B',inList[0:1])
@@ -303,7 +307,7 @@ class UBLOXPVTParser:
             elif self.ubloxState == 5:#get GPS packet
                 if self.ublox.inWaiting() >= 92:
                     #print "5"
-                    ubloxList = self.ublox.read(92)
+                    self.ubloxList = self.ublox.read(92)
                     self.ubloxState = 6
             elif self.ubloxState == 6:#get first sum
                 self.sumRcvdA = self.GetGPSByte()
@@ -311,14 +315,14 @@ class UBLOXPVTParser:
             elif self.ubloxState == 7:#get second sum then generate and check
                 self.sumRcvdB = self.GetGPSByte()
                 for i in range(0,92):
-                    summingByte = struct.unpack('B',ubloxList[i:i+1])
+                    summingByte = struct.unpack('B',self.ubloxList[i:i+1])
                     self.sumCalcA += summingByte[0]
                     self.sumCalcB += self.sumCalcA
                 self.sumCalcA = self.sumCalcA & 0xFF
                 self.sumCalcB = self.sumCalcB & 0xFF
                 if (self.sumCalcA == self.sumRcvdA) and (self.sumCalcB == self.sumRcvdB):
                     #unpack the data from the list
-                    ubloxTouple = struct.unpack('LHBBBBBBLlBBBBllllLLlllllLLH',ubloxList[0:78])
+                    ubloxTouple = struct.unpack('LHBBBBBBLlBBBBllllLLlllllLLH',self.ubloxList[0:78])
                     self.numSats = ubloxTouple[13]
                     self.longitude = ubloxTouple[14]
                     self.lattitude = ubloxTouple[15]
@@ -356,21 +360,30 @@ accGyroString = []
 magString = []
 gpsString = []
 pressureString = []
+now = micros()
 while True:
+    #now = micros()
     if (micros() - highRateTimer) > 1250:
+        
         highRateTimer = micros()
+        #ft232h.output(6, GPIO.HIGH)
         gyroList = gyro.Read()
         accList = acc.Read()
+        #ft232h.output(7, GPIO.HIGH)
         accGyroString = "%f,%i,%i,%i,%i,%i,%i,%i"%(micros(),0
                                                 ,gyroList[0],gyroList[1]
                                                 ,gyroList[2],accList[0]
                                                 ,accList[1],accList[2])
         logging.info(accGyroString)
-    if (millis() - lowRateTimer) > 13.3:
-        lowRateTimer = millis()
+        #ft232h.output(7, GPIO.LOW)
+        #ft232h.output(6, GPIO.LOW)
+    if (micros() - lowRateTimer) > 13333.333:
+        #ft232h.output(7, GPIO.HIGH)
+        lowRateTimer = micros()
         magList = mag.Read()
         magString = "%f,%i,%i,%i,%i"%(micros(),1,magList[0],magList[1],magList[2])
         logging.info(magString)
+        #ft232h.output(7, GPIO.LOW)
     baro.Poll()
     if baro.newBaroData == True:
         baro.newBaroData = False
@@ -379,7 +392,15 @@ while True:
     gps.Poll()
     if gps.newGPSData == True:
         gps.newGPSData = False
-        gpsString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i"%(micros(),3,gps.numSats,gps.longitude,gps.lattitude,gps.heightEllipsoid,gps.heightMSL,gps.velN,gps.velE,gps.velD)
+        gpsString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i"%(micros(),3,
+                                                     gps.numSats,
+                                                     gps.longitude,
+                                                     gps.lattitude,
+                                                     gps.heightEllipsoid,
+                                                     gps.heightMSL,
+                                                     gps.velN,
+                                                     gps.velE,
+                                                     gps.velD)
         logging.info(gpsString)
 
 
