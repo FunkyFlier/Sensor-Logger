@@ -17,10 +17,13 @@ import serial
 FT232H.use_FT232H()
 # Find the first FT232H device.
 ft232h = FT232H.FT232H()
-dateString = strftime("dataSet_%d_%m_%Y_%H-%M.csv", localtime())
+dateString = strftime("dataSet_%d_%m_%Y_%H-%M-%S.csv", localtime())
 print dateString
 #fileName = open("dataSet"+str(time.clock())+".csv", 'w')
+
 fileName = open(dateString, 'w')
+headerString = "time,flag,gyroX,gyroY,gyroZ,accX,accY,accZ,magX,magY,magZ,press,numSat,lat,lon,hE,hMSL,velN,velE,velD\r"
+fileName.write(headerString)
 #logging.basicConfig(filename='dataSet1.csv',format='',level=logging.INFO)
 ft232h.setup(6, GPIO.OUT)  
 ft232h.setup(7, GPIO.OUT)  
@@ -176,7 +179,7 @@ class MS56XXDriver:
     
     MS5611_ADC_READ           = 0x00
     
-    MS5611_BARO_CONV_TIME     = 11
+    MS5611_BARO_CONV_TIME     = 13
     C = []
     pressure = 0.0
     pollTimer = 0
@@ -186,7 +189,6 @@ class MS56XXDriver:
     newBaroData = False
     def __init__(self):
         self.baro = FT232H.I2CDevice(ft232h,self.BARO_ADDR,400000)
-        
     def Setup(self): 
         baroByteList = self.baro.readList(self.MS5611_PROM_Setup , 2)
         self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
@@ -208,8 +210,7 @@ class MS56XXDriver:
               
         baroByteList = self.baro.readList(self.MS5611_PROM_C6, 2)
         self.C.append(ctypes.c_uint16(struct.unpack('>H',baroByteList[0:2])[0]).value)
-        self.pollTimer = millis()
-        self.pollState = 0
+        
         print self.C
        
         
@@ -217,9 +218,9 @@ class MS56XXDriver:
         if self.pollState == 0:#send D2 convert
             self.baro.writeRaw8(self.MS5611_CONVERT_D2_OSR4096)
             self.pollState = 1
+            self.pollTimer = millis()
         elif self.pollState == 1:#
             if (millis() - self.pollTimer) >  self.MS5611_BARO_CONV_TIME:
-                self.pollTimer = millis()
                 adcList = self.baro.readList(self.MS5611_ADC_READ, 3)
                 adcList.insert(0,'\00')
                 self.D2 = struct.unpack('>L',adcList[0:4])[0]
@@ -227,9 +228,9 @@ class MS56XXDriver:
         elif self.pollState == 2:
             self.baro.writeRaw8(self.MS5611_CONVERT_D1_OSR4096)
             self.pollState = 3
+            self.pollTimer = millis()
         elif self.pollState == 3:
             if (millis() - self.pollTimer) >  self.MS5611_BARO_CONV_TIME:
-                self.pollTimer = millis()
                 adcList = self.baro.readList(self.MS5611_ADC_READ, 3)
                 adcList.insert(0,'\00')
                 self.D1 = struct.unpack('>L',adcList[0:4])[0]
@@ -373,7 +374,7 @@ gyro = L3G4200DDriver()
 acc = LSM303DLHAccDriver()
 mag = LSM303DLHMagDriver()
 baro = MS56XXDriver()
-gps = UBLOXPVTParser()
+#gps = UBLOXPVTParser()
 
 mag.Setup()
 gyro.Setup()
@@ -395,41 +396,63 @@ while True:
         highRateTimer = micros()
         gyroList = gyro.Read()
         accList = acc.Read()
-        accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f"%(micros(),0
-                                                ,gyroList[0],gyroList[1]
-                                                ,gyroList[2],accList[0]
-                                                ,accList[1],accList[2])
-        #logging.info(accGyroString)
-        fileName.write(accGyroString)
+#         accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f\r"%(micros(),0
+#                                                 ,gyroList[0],gyroList[1]
+#                                                 ,gyroList[2],accList[0]
+#                                                 ,accList[1],accList[2])
+#         #logging.info(accGyroString)
+#         fileName.write(accGyroString)
         #print accGyroString
-    if (micros() - lowRateTimer) > 13333.333:
-        ft232h.output(7, GPIO.HIGH)
-        lowRateTimer = micros()
-        magList = mag.Read()
-        magString = "%f,%i,%f,%f,%f"%(micros(),1,magList[0],magList[1],magList[2])
-        fileName.write(magString)
-        #logging.info(magString)
-    baro.Poll()
+        if (micros() - lowRateTimer) > 13333.333:
+            ft232h.output(7, GPIO.HIGH)
+            lowRateTimer = micros()
+            magList = mag.Read()
+            #magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
+            magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
+                                                    ,gyroList[0],gyroList[1]
+                                                    ,gyroList[2],accList[0]
+                                                    ,accList[1],accList[2]
+                                                    ,magList[0],magList[1],magList[2])
+            fileName.write(magString)
+            #logging.info(magString)
+        else:
+            accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,0,0,0,,,,,,,,,\r"%(micros(),0
+                                                    ,gyroList[0],gyroList[1]
+                                                    ,gyroList[2],accList[0]
+                                                    ,accList[1],accList[2])
+            #logging.info(accGyroString)
+            fileName.write(accGyroString)
+            #print accGyroString
+            
+            
+#     if (micros() - lowRateTimer) > 13333.333:
+#         ft232h.output(7, GPIO.HIGH)
+#         lowRateTimer = micros()
+#         magList = mag.Read()
+#         magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
+#         fileName.write(magString)
+#         #logging.info(magString)
+    #baro.Poll()
     if baro.newBaroData == True:
         baro.newBaroData = False
-        pressureString = "%f,%i,%i"%(micros(),2,baro.pressure)
+        pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
         #logging.info(pressureString)
         fileName.write(pressureString)
-    gps.Poll()
-    if gps.newGPSData == True:
-        gps.newGPSData = False
-        gpsString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i"%(micros(),3,
-                                                     gps.numSats,
-                                                     gps.longitude,
-                                                     gps.lattitude,
-                                                     gps.heightEllipsoid,
-                                                     gps.heightMSL,
-                                                     gps.velN,
-                                                     gps.velE,
-                                                     gps.velD)
-        #logging.info(gpsString)
-        fileName.write(gpsString)
-        #print gpsString
+#     gps.Poll()
+#     if gps.newGPSData == True:
+#         gps.newGPSData = False
+#         gpsString = "%f,%i,,,,,,,,,,,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),3,
+#                                                      gps.numSats,
+#                                                      gps.longitude,
+#                                                      gps.lattitude,
+#                                                      gps.heightEllipsoid,
+#                                                      gps.heightMSL,
+#                                                      gps.velN,
+#                                                      gps.velE,
+#                                                      gps.velD)
+#         #logging.info(gpsString)
+#         fileName.write(gpsString)
+#         #print gpsString
 
 
 
