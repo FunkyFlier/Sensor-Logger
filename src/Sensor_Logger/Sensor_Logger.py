@@ -50,7 +50,8 @@ class L3G4200DDriver:
     L3G_CTRL_REG5 = 0x24
     L3G_OUT_X_L   = 0x28
     L3G_WHO_AM_I  = 0x0F
-    L3G_I2C_ADDR  = 0x69#0110 1001   
+    #L3G_I2C_ADDR  = 0x69#0110 1001   
+    L3G_I2C_ADDR  = 0x6B#0110 1001   
     READ = 0x80
  
     def __init__(self):
@@ -93,22 +94,22 @@ class LSM303DLHMagDriver:
     HMC5983_WHO_AM_I = 0x0F
     READ = 0x80
     
-    biasX = 17.405503
-    biasY = -73.633369
-    biasZ = -54.624221
-    w00 = 1.001680
-    w01 = 0.075379
-    w02 = -0.043184
-    w10 = 0.075379
-    w11 = 1.003391
-    w12 = 0.034361
-    w20 = -0.043184
-    w21 = 0.034361
-    w22 = 1.015037
+    biasX = 9.846745
+    biasY = -0.904241
+    biasZ = 2.795778
+    w00 = 1.000606
+    w01 = 0.007821
+    w02 = 0.012025
+    w10 = 0.007821
+    w11 = 0.899621
+    w12 = 0.002364
+    w20 = 0.012025
+    w21 = 0.002364
+    w22 = 1.018491
     def __init__(self):
         self.mag  = FT232H.I2CDevice(ft232h,self.MAG_ADDRESS,400000)
     def Setup(self):
-        self.mag.write8(self.HMC5983_CRA_REG, 0x18)
+        self.mag.write8(self.HMC5983_CRA_REG, 0x1C)
         self.mag.write8(self.HMC5983_CRB_REG, 0x60)
         self.mag.write8(self.HMC5983_MR_REG, 0x00)
     def Read(self):
@@ -116,14 +117,14 @@ class LSM303DLHMagDriver:
         magIntTouple = struct.unpack('>hhh',magByteList[0:6])
         magIntList = list(magIntTouple)
         magFloatList = [0,0,0]
-        magFloatList[0] = magIntList[0] * self.w00 + magIntList[1] * self.w01 + magIntList[2] * self.w02 
-        magFloatList[1] = magIntList[0] * self.w10 + magIntList[1] * self.w11 + magIntList[2] * self.w12 
-        magFloatList[2] = magIntList[0] * self.w20 + magIntList[1] * self.w21 + magIntList[2] * self.w22 
+        magFloatList[0] = magIntList[0] * self.w00 + magIntList[2] * self.w01 + magIntList[1] * self.w02 
+        magFloatList[1] = magIntList[0] * self.w10 + magIntList[2] * self.w11 + magIntList[1] * self.w12 
+        magFloatList[2] = magIntList[0] * self.w20 + magIntList[2] * self.w21 + magIntList[1] * self.w22 
         return magFloatList    
     
 class LSM303DLHAccDriver:
     #ACC defines
-    ACC_ADDRESS       = 0x18#0001 1000
+    ACC_ADDRESS       = 0x19#0001 1000
     CTRL_REG1_A       = 0x20
     CTRL_REG2_A       = 0x21
     CTRL_REG3_A       = 0x22
@@ -143,16 +144,19 @@ class LSM303DLHAccDriver:
     
     READ = 0x80
     scaleFactor = 9.8/4096
+    #scaleFactor = 1
     def __init__(self):
         self.acc = FT232H.I2CDevice(ft232h,self.ACC_ADDRESS,400000) 
     
     def Setup(self):
-        self.acc.write8(self.CTRL_REG1_A, 0x3F)
+        
         self.acc.write8(self.CTRL_REG2_A, 0x00)
         self.acc.write8(self.CTRL_REG3_A, 0x00)
-        self.acc.write8(self.CTRL_REG4_A, 0x30)
+        self.acc.write8(self.CTRL_REG4_A, 0x28)
         self.acc.write8(self.CTRL_REG5_A, 0x00)
-        #1kHz +/- 8G
+        self.acc.write8(self.CTRL_REG6_A, 0x00)
+        self.acc.write8(self.CTRL_REG1_A, 0x97)
+        #1.344kHz +/- 8G
     def Read(self):
         accByteList = self.acc.readList(self.OUT_X_L_A | self.READ, 6)
         accIntTouple = struct.unpack('hhh',accByteList[0:6])
@@ -384,47 +388,80 @@ baro.Setup()
 print gyro.Read()
 print acc.Read()
 print mag.Read()
-highRateTimer = micros()
-lowRateTimer = millis()
+magList = mag.Read()
+
 accGyroString = []
 magString = []
 gpsString = []
 pressureString = []
 now = micros()
+highRateTimer = micros()
+lowRateTimer = millis()
+accSumX = 0
+accSumY = 0
+accSumZ = 0
+magSumX = 0
+magSumY = 0
+magSumZ = 0
+numSampsForAvg = 10
+for x in range(0,numSampsForAvg):
+    accList = acc.Read()
+    magList = mag.Read()
+    accSumX += accList[0]
+    accSumY += accList[1]
+    accSumZ += accList[2]
+    magSumX += magList[0]
+    magSumY += magList[1]
+    magSumZ += magList[2]
+    time.sleep(0.1)
+
+initialAccX = accSumX / numSampsForAvg;
+initialAccY = accSumY / numSampsForAvg;
+initialAccZ = accSumZ / numSampsForAvg;
+initialMagX = magSumX / numSampsForAvg;
+initialMagY = magSumY / numSampsForAvg;
+initialMagZ = magSumZ / numSampsForAvg;
+magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1,0,0,0,
+                                                           initialAccX,
+                                                           initialAccY,
+                                                           initialAccZ,
+                                                           initialMagX,
+                                                           initialMagY,
+                                                           initialMagZ)
+                                                            
+fileName.write(magString)
 while True:
-    if (micros() - highRateTimer) > 1250:
+    if (micros() - highRateTimer) > 10000:
         highRateTimer = micros()
         gyroList = gyro.Read()
         accList = acc.Read()
-#         accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f\r"%(micros(),0
-#                                                 ,gyroList[0],gyroList[1]
-#                                                 ,gyroList[2],accList[0]
-#                                                 ,accList[1],accList[2])
-#         #logging.info(accGyroString)
-#         fileName.write(accGyroString)
-        #print accGyroString
-        if (micros() - lowRateTimer) > 13333.333:
-            ft232h.output(7, GPIO.HIGH)
-            lowRateTimer = micros()
-            magList = mag.Read()
-            #magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
-            magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
-                                                    ,gyroList[0],gyroList[1]
-                                                    ,gyroList[2],accList[0]
-                                                    ,accList[1],accList[2]
-                                                    ,magList[0],magList[1],magList[2])
-            fileName.write(magString)
-            #logging.info(magString)
-        else:
-            accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,0,0,0,,,,,,,,,\r"%(micros(),0
-                                                    ,gyroList[0],gyroList[1]
-                                                    ,gyroList[2],accList[0]
-                                                    ,accList[1],accList[2])
-            #logging.info(accGyroString)
-            fileName.write(accGyroString)
-            #print accGyroString
-            
-            
+        magList = mag.Read()
+        print gyroList
+        magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
+                                                ,gyroList[0],gyroList[1]
+                                                ,gyroList[2],accList[0]
+                                                ,accList[1],accList[2]
+                                                ,magList[0],magList[1],magList[2])
+        fileName.write(magString)
+#         if (micros() - lowRateTimer) > 4545:
+#             ft232h.output(7, GPIO.HIGH)
+#             lowRateTimer = micros()
+#             magList = mag.Read()
+#             #magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
+#             magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
+#                                                     ,gyroList[0],gyroList[1]
+#                                                     ,gyroList[2],accList[0]
+#                                                     ,accList[1],accList[2]
+#                                                     ,magList[0],magList[1],magList[2])
+#             fileName.write(magString)
+#         else:
+#             accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),0
+#                                                     ,gyroList[0],gyroList[1]
+#                                                     ,gyroList[2],accList[0]
+#                                                     ,accList[1],accList[2]
+#                                                     ,magList[0],magList[1],magList[2])
+#             fileName.write(accGyroString)
+#             
 #     if (micros() - lowRateTimer) > 13333.333:
 #         ft232h.output(7, GPIO.HIGH)
 #         lowRateTimer = micros()
@@ -432,12 +469,12 @@ while True:
 #         magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
 #         fileName.write(magString)
 #         #logging.info(magString)
-    #baro.Poll()
-    if baro.newBaroData == True:
-        baro.newBaroData = False
-        pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
-        #logging.info(pressureString)
-        fileName.write(pressureString)
+#     #baro.Poll()
+#     if baro.newBaroData == True:
+#         baro.newBaroData = False
+#         pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
+#         #logging.info(pressureString)
+#         fileName.write(pressureString)
 #     gps.Poll()
 #     if gps.newGPSData == True:
 #         gps.newGPSData = False
