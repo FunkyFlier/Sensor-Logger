@@ -403,7 +403,7 @@ accSumZ = 0
 magSumX = 0
 magSumY = 0
 magSumZ = 0
-numSampsForAvg = 10
+numSampsForAvg = 100
 for x in range(0,numSampsForAvg):
     accList = acc.Read()
     magList = mag.Read()
@@ -413,7 +413,7 @@ for x in range(0,numSampsForAvg):
     magSumX += magList[0]
     magSumY += magList[1]
     magSumZ += magList[2]
-    time.sleep(0.1)
+    time.sleep(0.01)
 
 initialAccX = accSumX / numSampsForAvg;
 initialAccY = accSumY / numSampsForAvg;
@@ -431,18 +431,18 @@ magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1,0,0,0,
                                                             
 fileName.write(magString)
 while True:
-    if (micros() - highRateTimer) > 10000:
-        highRateTimer = micros()
-        gyroList = gyro.Read()
-        accList = acc.Read()
-        magList = mag.Read()
-        print gyroList
-        magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
-                                                ,gyroList[0],gyroList[1]
-                                                ,gyroList[2],accList[0]
-                                                ,accList[1],accList[2]
-                                                ,magList[0],magList[1],magList[2])
-        fileName.write(magString)
+#     if (micros() - highRateTimer) > 10000:
+#         highRateTimer = micros()
+#         gyroList = gyro.Read()
+#         accList = acc.Read()
+#         magList = mag.Read()
+#         print gyroList
+#         magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
+#                                                 ,gyroList[0],gyroList[1]
+#                                                 ,gyroList[2],accList[0]
+#                                                 ,accList[1],accList[2]
+#                                                 ,magList[0],magList[1],magList[2])
+#         fileName.write(magString)
 #         if (micros() - lowRateTimer) > 4545:
 #             ft232h.output(7, GPIO.HIGH)
 #             lowRateTimer = micros()
@@ -469,12 +469,12 @@ while True:
 #         magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
 #         fileName.write(magString)
 #         #logging.info(magString)
-#     #baro.Poll()
-#     if baro.newBaroData == True:
-#         baro.newBaroData = False
-#         pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
-#         #logging.info(pressureString)
-#         fileName.write(pressureString)
+    baro.Poll()
+    if baro.newBaroData == True:
+        baro.newBaroData = False
+        pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
+        #logging.info(pressureString)
+        fileName.write(pressureString)
 #     gps.Poll()
 #     if gps.newGPSData == True:
 #         gps.newGPSData = False
