@@ -378,7 +378,7 @@ gyro = L3G4200DDriver()
 acc = LSM303DLHAccDriver()
 mag = LSM303DLHMagDriver()
 baro = MS56XXDriver()
-#gps = UBLOXPVTParser()
+gps = UBLOXPVTParser()
 
 mag.Setup()
 gyro.Setup()
@@ -388,6 +388,7 @@ baro.Setup()
 print gyro.Read()
 print acc.Read()
 print mag.Read()
+print gyro.Read()
 magList = mag.Read()
 
 accGyroString = []
@@ -403,10 +404,17 @@ accSumZ = 0
 magSumX = 0
 magSumY = 0
 magSumZ = 0
+gyroSumX = 0
+gyroSumY = 0
+gyroSumZ = 0
 numSampsForAvg = 100
 for x in range(0,numSampsForAvg):
     accList = acc.Read()
     magList = mag.Read()
+    gyroList = gyro.Read()
+    gyroSumX += gyroList[0]
+    gyroSumY += gyroList[1]
+    gyroSumZ += gyroList[2]
     accSumX += accList[0]
     accSumY += accList[1]
     accSumZ += accList[2]
@@ -415,53 +423,86 @@ for x in range(0,numSampsForAvg):
     magSumZ += magList[2]
     time.sleep(0.01)
 
+initialGyroX = gyroSumX / numSampsForAvg;
+initialGyroY = gyroSumY / numSampsForAvg;
+initialGyroZ = gyroSumZ / numSampsForAvg;
 initialAccX = accSumX / numSampsForAvg;
 initialAccY = accSumY / numSampsForAvg;
 initialAccZ = accSumZ / numSampsForAvg;
 initialMagX = magSumX / numSampsForAvg;
 initialMagY = magSumY / numSampsForAvg;
 initialMagZ = magSumZ / numSampsForAvg;
-magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1,0,0,0,
+
+baroSum = 0
+for x in range(0,numSampsForAvg):
+    while baro.newBaroData == False:
+        baro.Poll()
+    if baro.newBaroData == True:
+        baroSum += baro.pressure
+        baro.newBaroData = False
+        
+initialBaro =  baroSum  / numSampsForAvg;             
+
+
+while gps.numSats < 7:
+    gps.Poll()
+    if gps.newGPSData == True:
+        print gps.numSats
+        gps.newGPSData = False
+
+
+initialString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),1,initialGyroX,initialGyroY,initialGyroZ,
                                                            initialAccX,
                                                            initialAccY,
                                                            initialAccZ,
                                                            initialMagX,
                                                            initialMagY,
-                                                           initialMagZ)
+                                                           initialMagZ,
+                                                           initialBaro,
+                                                           gps.numSats,
+                                                           gps.longitude,
+                                                           gps.lattitude,
+                                                           gps.heightEllipsoid,
+                                                           gps.heightMSL,
+                                                           gps.velN,
+                                                           gps.velE,
+                                                           gps.velD)
                                                             
-fileName.write(magString)
+fileName.write(initialString)
 while True:
-#     if (micros() - highRateTimer) > 10000:
-#         highRateTimer = micros()
-#         gyroList = gyro.Read()
-#         accList = acc.Read()
-#         magList = mag.Read()
-#         print gyroList
-#         magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
+    if (micros() - highRateTimer) > 1250:
+        highRateTimer = micros()
+        gyroList = gyro.Read()
+        accList = acc.Read()
+#         accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f\r"%(micros(),0
 #                                                 ,gyroList[0],gyroList[1]
 #                                                 ,gyroList[2],accList[0]
-#                                                 ,accList[1],accList[2]
-#                                                 ,magList[0],magList[1],magList[2])
-#         fileName.write(magString)
-#         if (micros() - lowRateTimer) > 4545:
-#             ft232h.output(7, GPIO.HIGH)
-#             lowRateTimer = micros()
-#             magList = mag.Read()
-#             #magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
-#             magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
-#                                                     ,gyroList[0],gyroList[1]
-#                                                     ,gyroList[2],accList[0]
-#                                                     ,accList[1],accList[2]
-#                                                     ,magList[0],magList[1],magList[2])
-#             fileName.write(magString)
-#         else:
-#             accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),0
-#                                                     ,gyroList[0],gyroList[1]
-#                                                     ,gyroList[2],accList[0]
-#                                                     ,accList[1],accList[2]
-#                                                     ,magList[0],magList[1],magList[2])
-#             fileName.write(accGyroString)
-#             
+#                                                 ,accList[1],accList[2])
+#         #logging.info(accGyroString)
+#         fileName.write(accGyroString)
+        #print accGyroString
+        if (micros() - lowRateTimer) > 13333.333:
+            ft232h.output(7, GPIO.HIGH)
+            lowRateTimer = micros()
+            magList = mag.Read()
+            #magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
+            magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
+                                                    ,gyroList[0],gyroList[1]
+                                                    ,gyroList[2],accList[0]
+                                                    ,accList[1],accList[2]
+                                                    ,magList[0],magList[1],magList[2])
+            fileName.write(magString)
+            #logging.info(magString)
+        else:
+            accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,0,0,0,,,,,,,,,\r"%(micros(),0
+                                                    ,gyroList[0],gyroList[1]
+                                                    ,gyroList[2],accList[0]
+                                                    ,accList[1],accList[2])
+            #logging.info(accGyroString)
+            fileName.write(accGyroString)
+            #print accGyroString
+            
+            
 #     if (micros() - lowRateTimer) > 13333.333:
 #         ft232h.output(7, GPIO.HIGH)
 #         lowRateTimer = micros()
@@ -475,25 +516,21 @@ while True:
         pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
         #logging.info(pressureString)
         fileName.write(pressureString)
-#     gps.Poll()
-#     if gps.newGPSData == True:
-#         gps.newGPSData = False
-#         gpsString = "%f,%i,,,,,,,,,,,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),3,
-#                                                      gps.numSats,
-#                                                      gps.longitude,
-#                                                      gps.lattitude,
-#                                                      gps.heightEllipsoid,
-#                                                      gps.heightMSL,
-#                                                      gps.velN,
-#                                                      gps.velE,
-#                                                      gps.velD)
-#         #logging.info(gpsString)
-#         fileName.write(gpsString)
-#         #print gpsString
-
-
-
-
+    gps.Poll()
+    if gps.newGPSData == True:
+        gps.newGPSData = False
+        gpsString = "%f,%i,,,,,,,,,,,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),3,
+                                                     gps.numSats,
+                                                     gps.longitude,
+                                                     gps.lattitude,
+                                                     gps.heightEllipsoid,
+                                                     gps.heightMSL,
+                                                     gps.velN,
+                                                     gps.velE,
+                                                     gps.velD)
+        #logging.info(gpsString)
+        fileName.write(gpsString)
+        #print gpsString
 
 
 
