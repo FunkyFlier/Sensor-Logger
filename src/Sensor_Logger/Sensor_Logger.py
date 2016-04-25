@@ -69,11 +69,12 @@ class L3G4200DDriver:
         gyroByteList = self.gyro.readList(self.L3G_OUT_X_L | self.READ, 6)
         gyroIntTouple = struct.unpack('hhh',gyroByteList[0:6])
         gyroIntList = list(gyroIntTouple)
-        gyroFloatList = [0,0,0]
-        gyroFloatList[0] = gyroIntList[0] * 0.07
-        gyroFloatList[1] = gyroIntList[1] * 0.07
-        gyroFloatList[2] = gyroIntList[2] * 0.07
-        return gyroFloatList;
+#         gyroFloatList = [0,0,0]
+#         gyroFloatList[0] = gyroIntList[0] * 0.07
+#         gyroFloatList[1] = gyroIntList[1] * 0.07
+#         gyroFloatList[2] = gyroIntList[2] * 0.07
+#         return gyroFloatList
+        return gyroIntList
     
 class LSM303DLHMagDriver:
     #mag defines ST HMC5983DLHC - will work with the HMC5883L
@@ -116,11 +117,12 @@ class LSM303DLHMagDriver:
         magByteList = self.mag.readList(self.HMC5983_OUT_X_H | self.READ,6)
         magIntTouple = struct.unpack('>hhh',magByteList[0:6])
         magIntList = list(magIntTouple)
-        magFloatList = [0,0,0]
-        magFloatList[0] = magIntList[0] * self.w00 + magIntList[2] * self.w01 + magIntList[1] * self.w02 
-        magFloatList[1] = magIntList[0] * self.w10 + magIntList[2] * self.w11 + magIntList[1] * self.w12 
-        magFloatList[2] = magIntList[0] * self.w20 + magIntList[2] * self.w21 + magIntList[1] * self.w22 
-        return magFloatList    
+#         magFloatList = [0,0,0]
+#         magFloatList[0] = magIntList[0] * self.w00 + magIntList[2] * self.w01 + magIntList[1] * self.w02 
+#         magFloatList[1] = magIntList[0] * self.w10 + magIntList[2] * self.w11 + magIntList[1] * self.w12 
+#         magFloatList[2] = magIntList[0] * self.w20 + magIntList[2] * self.w21 + magIntList[1] * self.w22 
+#         return magFloatList
+        return magIntList     
     
 class LSM303DLHAccDriver:
     #ACC defines
@@ -161,11 +163,12 @@ class LSM303DLHAccDriver:
         accByteList = self.acc.readList(self.OUT_X_L_A | self.READ, 6)
         accIntTouple = struct.unpack('hhh',accByteList[0:6])
         accIntList = list(accIntTouple)
-        accFloatList = [0,0,0]
-        accFloatList[0] = accIntList[0] * self.scaleFactor
-        accFloatList[1] = accIntList[1] * self.scaleFactor
-        accFloatList[2] = accIntList[2] * self.scaleFactor
-        return accFloatList    
+#         accFloatList = [0,0,0]
+#         accFloatList[0] = accIntList[0] * self.scaleFactor
+#         accFloatList[1] = accIntList[1] * self.scaleFactor
+#         accFloatList[2] = accIntList[2] * self.scaleFactor
+#         return accFloatList
+        return accIntList       
 
 class MS56XXDriver:
     BARO_ADDR                 = 0x76 
@@ -449,16 +452,15 @@ for x in range(0,numSampsForAvg):
 initialBaro =  baroSum  / numSampsForAvg;             
 
 
-while gps.numSats < 7:
-    print gps.numSats
-    gps.Poll()
-    if gps.newGPSData == True:
-        print gps.numSats
-        gps.newGPSData = False
+# while gps.numSats < 7:
+#     print gps.numSats
+#     gps.Poll()
+#     if gps.newGPSData == True:
+#         print gps.numSats
+#         gps.newGPSData = False
  
  
-
-initialString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),1,initialGyroX,initialGyroY,initialGyroZ,
+initialString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),1,initialGyroX,initialGyroY,initialGyroZ,
                                                            initialAccX,
                                                            initialAccY,
                                                            initialAccZ,
@@ -475,52 +477,88 @@ initialString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%
                                                            gps.velE,
                                                            gps.velD
                                                            )
+# initialString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),1,initialGyroX,initialGyroY,initialGyroZ,
+#                                                            initialAccX,
+#                                                            initialAccY,
+#                                                            initialAccZ,
+#                                                            initialMagX,
+#                                                            initialMagY,
+#                                                            initialMagZ,
+#                                                            initialBaro,
+#                                                            gps.numSats,
+#                                                            gps.longitude,
+#                                                            gps.lattitude,
+#                                                            gps.heightEllipsoid,
+#                                                            gps.heightMSL,
+#                                                            gps.velN,
+#                                                            gps.velE,
+#                                                            gps.velD
+#                                                            )
 
 fileName.write(initialString)
 while True:
-    if (micros() - highRateTimer) > 1250:
+    
+    if (micros() - highRateTimer) > 10000:
+        ft232h.output(7, GPIO.HIGH)
         highRateTimer = micros()
         gyroList = gyro.Read()
         accList = acc.Read()
-        if (micros() - lowRateTimer) > 13333.333:
-            ft232h.output(7, GPIO.HIGH)
-            lowRateTimer = micros()
-            magList = mag.Read()
-            magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
-                                                    ,gyroList[0],gyroList[1]
-                                                    ,gyroList[2],accList[0]
-                                                    ,accList[1],accList[2]
-                                                    ,magList[0],magList[1],magList[2])
-            fileName.write(magString)
-        else:
-            accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,0,0,0,,,,,,,,,\r"%(micros(),0
-                                                    ,gyroList[0],gyroList[1]
-                                                    ,gyroList[2],accList[0]
-                                                    ,accList[1],accList[2])
-            fileName.write(accGyroString)
-            
-            
+        lowRateTimer = micros()
+        magList = mag.Read()
+        
+        magString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,,,,,,,,,\r"%(micros(),1
+                                                ,gyroList[0],gyroList[1]
+                                                ,gyroList[2],accList[0]
+                                                ,accList[1],accList[2]
+                                                ,magList[0],magList[1],magList[2])
+        fileName.write(magString)
 
-    baro.Poll()
-    if baro.newBaroData == True:
-        baro.newBaroData = False
-        pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
-        #logging.info(pressureString)
-        fileName.write(pressureString)
-    gps.Poll()
-    if gps.newGPSData == True:
-        gps.newGPSData = False
-        gpsString = "%f,%i,,,,,,,,,,,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),3,
-                                                     gps.numSats,
-                                                     gps.longitude,
-                                                     gps.lattitude,
-                                                     gps.heightEllipsoid,
-                                                     gps.heightMSL,
-                                                     gps.velN,
-                                                     gps.velE,
-                                                     gps.velD)
-        #print gpsString
-        fileName.write(gpsString)
+        
+    
+    
+#     if (micros() - highRateTimer) > 1250:
+#         highRateTimer = micros()
+#         gyroList = gyro.Read()
+#         accList = acc.Read()
+#         if (micros() - lowRateTimer) > 13333.333:
+#             ft232h.output(7, GPIO.HIGH)
+#             lowRateTimer = micros()
+#             magList = mag.Read()
+#             magString = "%f,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,,,,,,,,,\r"%(micros(),1
+#                                                     ,gyroList[0],gyroList[1]
+#                                                     ,gyroList[2],accList[0]
+#                                                     ,accList[1],accList[2]
+#                                                     ,magList[0],magList[1],magList[2])
+#             fileName.write(magString)
+#         else:
+#             accGyroString = "%f,%i,%i,%i,%i,%i,%i,%i,0,0,0,,,,,,,,,\r"%(micros(),0
+#                                                     ,gyroList[0],gyroList[1]
+#                                                     ,gyroList[2],accList[0]
+#                                                     ,accList[1],accList[2])
+#             fileName.write(accGyroString)
+#             
+#             
+
+#     baro.Poll()
+#     if baro.newBaroData == True:
+#         baro.newBaroData = False
+#         pressureString = "%f,%i,,,,,,,,,,%i,,,,,,,,\r"%(micros(),2,baro.pressure)
+#         #logging.info(pressureString)
+#         fileName.write(pressureString)
+#     gps.Poll()
+#     if gps.newGPSData == True:
+#         gps.newGPSData = False
+#         gpsString = "%f,%i,,,,,,,,,,,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),3,
+#                                                      gps.numSats,
+#                                                      gps.longitude,
+#                                                      gps.lattitude,
+#                                                      gps.heightEllipsoid,
+#                                                      gps.heightMSL,
+#                                                      gps.velN,
+#                                                      gps.velE,
+#                                                      gps.velD)
+#         #print gpsString
+#         fileName.write(gpsString)
 
 
 
