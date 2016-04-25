@@ -272,18 +272,18 @@ class UBLOXPVTParser:
     sumCalcA    = 0x00
     sumCalcB    = 0x00
     newGPSData = False
-    numSats = []
-    longitude = []
-    lattitude = []
-    heightEllipsoid = []
-    heightMSL = []
-    velN = []
-    velE = []
-    velD = []
+    numSats = 0
+    longitude = 0
+    lattitude = 0
+    heightEllipsoid = 0
+    heightMSL = 0
+    velN = 0
+    velE = 0
+    velD = 0
     ublox = []
     ubloxList = []
     def __init__(self):
-        self.ublox = serial.Serial('COM15',38400)
+        self.ublox = serial.Serial('COM3',38400)
         self.ublox.close()
         self.ublox.open()
         self.ubloxState  = 0
@@ -445,11 +445,13 @@ initialBaro =  baroSum  / numSampsForAvg;
 
 
 while gps.numSats < 7:
+    print gps.numSats
     gps.Poll()
     if gps.newGPSData == True:
         print gps.numSats
         gps.newGPSData = False
-
+ 
+ 
 
 initialString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%(micros(),1,initialGyroX,initialGyroY,initialGyroZ,
                                                            initialAccX,
@@ -466,50 +468,34 @@ initialString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,%i,%i,%i,%i,%i,%i,%i,%i,%i\r"%
                                                            gps.heightMSL,
                                                            gps.velN,
                                                            gps.velE,
-                                                           gps.velD)
-                                                            
+                                                           gps.velD
+                                                           )
+
 fileName.write(initialString)
 while True:
     if (micros() - highRateTimer) > 1250:
         highRateTimer = micros()
         gyroList = gyro.Read()
         accList = acc.Read()
-#         accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f\r"%(micros(),0
-#                                                 ,gyroList[0],gyroList[1]
-#                                                 ,gyroList[2],accList[0]
-#                                                 ,accList[1],accList[2])
-#         #logging.info(accGyroString)
-#         fileName.write(accGyroString)
-        #print accGyroString
         if (micros() - lowRateTimer) > 13333.333:
             ft232h.output(7, GPIO.HIGH)
             lowRateTimer = micros()
             magList = mag.Read()
-            #magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
             magString = "%f,%i,%f,%f,%f,%f,%f,%f,%f,%f,%f,,,,,,,,,\r"%(micros(),1
                                                     ,gyroList[0],gyroList[1]
                                                     ,gyroList[2],accList[0]
                                                     ,accList[1],accList[2]
                                                     ,magList[0],magList[1],magList[2])
             fileName.write(magString)
-            #logging.info(magString)
         else:
             accGyroString = "%f,%i,%f,%f,%f,%f,%f,%f,0,0,0,,,,,,,,,\r"%(micros(),0
                                                     ,gyroList[0],gyroList[1]
                                                     ,gyroList[2],accList[0]
                                                     ,accList[1],accList[2])
-            #logging.info(accGyroString)
             fileName.write(accGyroString)
-            #print accGyroString
             
             
-#     if (micros() - lowRateTimer) > 13333.333:
-#         ft232h.output(7, GPIO.HIGH)
-#         lowRateTimer = micros()
-#         magList = mag.Read()
-#         magString = "%f,%i,,,,,,,%f,%f,%f\r"%(micros(),1,magList[0],magList[1],magList[2])
-#         fileName.write(magString)
-#         #logging.info(magString)
+
     baro.Poll()
     if baro.newBaroData == True:
         baro.newBaroData = False
@@ -528,9 +514,8 @@ while True:
                                                      gps.velN,
                                                      gps.velE,
                                                      gps.velD)
-        #logging.info(gpsString)
+        print gpsString
         fileName.write(gpsString)
-        #print gpsString
 
 
 
