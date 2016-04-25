@@ -280,6 +280,11 @@ class UBLOXPVTParser:
     velN = 0
     velE = 0
     velD = 0
+    
+    hAcc = 0
+    vAcc = 0
+    sAcc = 0
+    
     ublox = []
     ubloxList = []
     def __init__(self):
@@ -514,7 +519,7 @@ while True:
                                                      gps.velN,
                                                      gps.velE,
                                                      gps.velD)
-        print gpsString
+        #print gpsString
         fileName.write(gpsString)
 
 
