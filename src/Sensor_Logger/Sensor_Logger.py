@@ -385,13 +385,13 @@ ClockStart()
 gyro = L3G4200DDriver()
 acc = LSM303DLHAccDriver()
 mag = LSM303DLHMagDriver()
-baro = MS56XXDriver()
+# baro = MS56XXDriver()
 gps = UBLOXPVTParser()
 
 mag.Setup()
 gyro.Setup()
 acc.Setup()
-baro.Setup()
+# baro.Setup()
 
 print gyro.Read()
 print acc.Read()
@@ -431,25 +431,25 @@ for x in range(0,numSampsForAvg):
     magSumZ += magList[2]
     time.sleep(0.01)
 
-initialGyroX = gyroSumX / numSampsForAvg;
-initialGyroY = gyroSumY / numSampsForAvg;
-initialGyroZ = gyroSumZ / numSampsForAvg;
-initialAccX = accSumX / numSampsForAvg;
-initialAccY = accSumY / numSampsForAvg;
-initialAccZ = accSumZ / numSampsForAvg;
-initialMagX = magSumX / numSampsForAvg;
-initialMagY = magSumY / numSampsForAvg;
-initialMagZ = magSumZ / numSampsForAvg;
-
-baroSum = 0
-for x in range(0,numSampsForAvg):
-    while baro.newBaroData == False:
-        baro.Poll()
-    if baro.newBaroData == True:
-        baroSum += baro.pressure
-        baro.newBaroData = False
-        
-initialBaro =  baroSum  / numSampsForAvg;             
+initialGyroX = gyroSumX / numSampsForAvg
+initialGyroY = gyroSumY / numSampsForAvg
+initialGyroZ = gyroSumZ / numSampsForAvg
+initialAccX = accSumX / numSampsForAvg
+initialAccY = accSumY / numSampsForAvg
+initialAccZ = accSumZ / numSampsForAvg
+initialMagX = magSumX / numSampsForAvg
+initialMagY = magSumY / numSampsForAvg
+initialMagZ = magSumZ / numSampsForAvg
+initialBaro = 0
+# baroSum = 0
+# for x in range(0,numSampsForAvg):
+#     while baro.newBaroData == False:
+#         baro.Poll()
+#     if baro.newBaroData == True:
+#         baroSum += baro.pressure
+#         baro.newBaroData = False
+#         
+# initialBaro =  baroSum  / numSampsForAvg;             
 
 
 # while gps.numSats < 7:
